@@ -63,32 +63,12 @@ static bool encodeBytesGroupZero(const unsigned char* buffer)
 	return true;
 }
 
-static size_t encodeBytesGroupMeasure(const unsigned char* buffer, int bits)
+static unsigned char* encodeBytesGroupTry(unsigned char* data, const unsigned char* buffer, int bits)
 {
 	assert(bits >= 1 && bits <= 8);
 
 	if (bits == 1)
-		return encodeBytesGroupZero(buffer) ? 0 : size_t(-1);
-
-	if (bits == 8)
-		return kByteGroupSize;
-
-	size_t result = kByteGroupSize * bits / 8;
-
-	unsigned char sentinel = (1 << bits) - 1;
-
-	for (size_t i = 0; i < kByteGroupSize; ++i)
-		result += buffer[i] >= sentinel;
-
-	return result;
-}
-
-static unsigned char* encodeBytesGroup(unsigned char* data, const unsigned char* buffer, int bits)
-{
-	assert(bits >= 1 && bits <= 8);
-
-	if (bits == 1)
-		return data;
+		return encodeBytesGroupZero(buffer) ? data : NULL;
 
 	if (bits == 8)
 	{
@@ -151,16 +131,16 @@ static unsigned char* encodeBytes(unsigned char* data, unsigned char* data_end, 
 			return NULL;
 
 		int best_bits = 8;
-		size_t best_size = encodeBytesGroupMeasure(buffer + i, 8);
+		size_t best_size = encodeBytesGroupTry(data, buffer + i, 8) - data;
 
 		for (int bits = 1; bits < 8; bits *= 2)
 		{
-			size_t size = encodeBytesGroupMeasure(buffer + i, bits);
+			unsigned char* next = encodeBytesGroupTry(data, buffer + i, bits);
 
-			if (size < best_size)
+			if (next && size_t(next - data) < best_size)
 			{
 				best_bits = bits;
-				best_size = size;
+				best_size = next - data;
 			}
 		}
 
@@ -171,9 +151,9 @@ static unsigned char* encodeBytes(unsigned char* data, unsigned char* data_end, 
 
 		header[header_offset / 4] |= bitslog2 << ((header_offset % 4) * 2);
 
-		unsigned char* next = encodeBytesGroup(data, buffer + i, best_bits);
+		unsigned char* next = encodeBytesGroupTry(data, buffer + i, best_bits);
 
-		assert(data + best_size == next);
+		assert(next && data + best_size == next);
 		data = next;
 
 #if TRACE
