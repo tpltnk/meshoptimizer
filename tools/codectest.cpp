@@ -332,8 +332,7 @@ size_t encodeNDZ(unsigned char* buffer, size_t buffer_size, const void* vertices
 				G value = *(G*)((char*)vertices + (i + j) * vertex_size + k);
 
 				// hurts unless values clump around 0
-				if (GS == 4)
-					value = (value << 1) | (value >> 31);
+				// value = (value << 1) | (value >> 31);
 
 				deltas[j] = value - last;
 
@@ -348,6 +347,9 @@ size_t encodeNDZ(unsigned char* buffer, size_t buffer_size, const void* vertices
 				for (size_t jc = 0; jc < GS * 8; ++jc)
 					if (deltas[jc] & (1u << jr))
 						transposed[jr] |= 1u << jc;
+
+			// effectively becomes raw deltas (for testing)
+			// memcpy(transposed, deltas, sizeof(deltas));
 
 			G mask = 0;
 			for (size_t j = 0; j < GS * 8; ++j)
