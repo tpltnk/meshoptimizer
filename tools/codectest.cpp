@@ -313,6 +313,55 @@ size_t encodeV1(unsigned char* buffer, size_t buffer_size, const void* vertices,
 	return data - buffer;
 }
 
+size_t encodeNDZ(unsigned char* buffer, size_t buffer_size, const void* vertices, size_t vertex_count, size_t vertex_size)
+{
+	unsigned char* pos = buffer;
+
+	for (size_t k = 0; k < vertex_size; k += 4)
+	{
+		unsigned int last = 0;
+
+		for (size_t i = 0; i < vertex_count; i += 32)
+		{
+			unsigned int deltas[32] = {};
+
+			for (size_t j = 0; j < 32 && i + j < vertex_count; ++j)
+			{
+				unsigned int value = *(unsigned*)((char*)vertices + (i + j) * vertex_size + k);
+
+				value = (value << 1) | (value >> 31);
+				deltas[j] = value - last;
+				deltas[j] ^= (deltas[j] >> 31) ? 0x7fffffff : 0;
+
+				last = value;
+			}
+
+			unsigned int transposed[32] = {};
+			for (size_t jr = 0; jr < 32; ++jr)
+				for (size_t jc = 0; jc < 32; ++jc)
+					if (deltas[jc] & (1u << jr))
+						transposed[jr] |= 1u << jc;
+
+			unsigned int mask = 0;
+			for (size_t j = 0; j < 32; ++j)
+				if (transposed[j])
+					mask |= 1u << j;
+
+			*(unsigned int*)pos = mask;
+			pos += 4;
+
+			for (size_t j = 0; j < 32; ++j)
+				if (transposed[j])
+				{
+					*(unsigned int*)pos = transposed[j];
+					pos += 4;
+				}
+		}
+	}
+
+	return pos - buffer;
+}
+
 int main(int argc, char** argv)
 {
 #ifdef _WIN32
@@ -335,7 +384,9 @@ int main(int argc, char** argv)
 	while ((bytes_read = fread(buffer, 1, sizeof(buffer), stdin)) > 0)
 		input.insert(input.end(), buffer, buffer + bytes_read);
 
-	if (argc == 2 && getenv("VEC3") && atoi(getenv("VEC3")))
+	int vec3 = getenv("VEC3") ? atoi(getenv("VEC3")) : 0;
+
+	if (argc == 2 && vec3)
 	{
 		size_t vertex_count = input.size() / stride;
 		std::vector<unsigned char> inputpx;
@@ -367,7 +418,11 @@ int main(int argc, char** argv)
 	{
 		size_t vertex_count = input.size() / stride;
 		std::vector<unsigned char> output(input.size() * 4); // todo
-		size_t output_size = encodeV1(output.data(), output.size(), input.data(), vertex_count, stride);
+		size_t output_size;
+		if (vec3 == 2)
+			output_size = encodeNDZ(output.data(), output.size(), input.data(), vertex_count, stride);
+		else
+			output_size = encodeV1(output.data(), output.size(), input.data(), vertex_count, stride);
 
 		fwrite(output.data(), 1, output_size, stdout);
 		return 0;
