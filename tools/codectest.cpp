@@ -76,27 +76,29 @@ static unsigned char* encodeBytesGroupTry(unsigned char* data, const unsigned ch
 		return data + kByteGroupSize;
 	}
 
-	size_t byte_size = 8 / bits;
-	assert(kByteGroupSize % byte_size == 0);
-
 	// fixed portion: bits bits for each value
 	// variable portion: full byte for each out-of-range value (using 1...1 as sentinel)
 	unsigned char sentinel = (1 << bits) - 1;
 
-	for (size_t i = 0; i < kByteGroupSize; i += byte_size)
+	unsigned int accum = 0;
+	unsigned int accum_bits = 0;
+
+	for (size_t i = 0; i < kByteGroupSize; ++i)
 	{
-		unsigned char byte = 0;
+		unsigned char enc = (buffer[i] >= sentinel) ? sentinel : buffer[i];
 
-		for (size_t k = 0; k < byte_size; ++k)
+		accum <<= bits;
+		accum |= enc;
+		accum_bits += bits;
+
+		if (accum_bits >= 8)
 		{
-			unsigned char enc = (buffer[i + k] >= sentinel) ? sentinel : buffer[i + k];
-
-			byte <<= bits;
-			byte |= enc;
+			accum_bits -= 8;
+			*data++ = accum >> accum_bits;
 		}
-
-		*data++ = byte;
 	}
+
+	assert(accum_bits == 0);
 
 	for (size_t i = 0; i < kByteGroupSize; ++i)
 	{
