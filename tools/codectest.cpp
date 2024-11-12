@@ -313,52 +313,60 @@ size_t encodeV1(unsigned char* buffer, size_t buffer_size, const void* vertices,
 	return data - buffer;
 }
 
+template <typename G>
 size_t encodeNDZ(unsigned char* buffer, size_t buffer_size, const void* vertices, size_t vertex_count, size_t vertex_size)
 {
 	unsigned char* pos = buffer;
+	const size_t GS = sizeof(G);
 
-	for (size_t k = 0; k < vertex_size; k += 4)
+	for (size_t k = 0; k < vertex_size; k += GS)
 	{
-		unsigned int last = 0;
+		G last = 0;
 
-		for (size_t i = 0; i < vertex_count; i += 32)
+		for (size_t i = 0; i < vertex_count; i += GS * 8)
 		{
-			unsigned int deltas[32] = {};
+			G deltas[GS * 8] = {};
 
-			for (size_t j = 0; j < 32 && i + j < vertex_count; ++j)
+			for (size_t j = 0; j < GS * 8 && i + j < vertex_count; ++j)
 			{
-				unsigned int value = *(unsigned*)((char*)vertices + (i + j) * vertex_size + k);
+				G value = *(G*)((char*)vertices + (i + j) * vertex_size + k);
 
-				value = (value << 1) | (value >> 31);
+				// hurts unless values clump around 0
+				if (GS == 4)
+					value = (value << 1) | (value >> 31);
+
 				deltas[j] = value - last;
-				deltas[j] ^= (deltas[j] >> 31) ? 0x7fffffff : 0;
+
+				G sign = 1u << (GS * 8 - 1);
+				deltas[j] ^= (deltas[j] & sign) ? sign - 1 : 0;
 
 				last = value;
 			}
 
-			unsigned int transposed[32] = {};
-			for (size_t jr = 0; jr < 32; ++jr)
-				for (size_t jc = 0; jc < 32; ++jc)
+			G transposed[GS * 8] = {};
+			for (size_t jr = 0; jr < GS * 8; ++jr)
+				for (size_t jc = 0; jc < GS * 8; ++jc)
 					if (deltas[jc] & (1u << jr))
 						transposed[jr] |= 1u << jc;
 
-			unsigned int mask = 0;
-			for (size_t j = 0; j < 32; ++j)
+			G mask = 0;
+			for (size_t j = 0; j < GS * 8; ++j)
 				if (transposed[j])
 					mask |= 1u << j;
 
-			*(unsigned int*)pos = mask;
-			pos += 4;
+			*(G*)pos = mask;
+			pos += GS;
 
-			for (size_t j = 0; j < 32; ++j)
+			for (size_t j = 0; j < GS * 8; ++j)
 				if (transposed[j])
 				{
-					*(unsigned int*)pos = transposed[j];
-					pos += 4;
+					*(G*)pos = transposed[j];
+					pos += GS;
 				}
 		}
 	}
 
+	assert(pos <= buffer + buffer_size);
 	return pos - buffer;
 }
 
@@ -420,7 +428,11 @@ int main(int argc, char** argv)
 		std::vector<unsigned char> output(input.size() * 4); // todo
 		size_t output_size;
 		if (vec3 == 2)
-			output_size = encodeNDZ(output.data(), output.size(), input.data(), vertex_count, stride);
+			output_size = encodeNDZ<unsigned int>(output.data(), output.size(), input.data(), vertex_count, stride);
+		else if (vec3 == 3)
+			output_size = encodeNDZ<unsigned short>(output.data(), output.size(), input.data(), vertex_count, stride);
+		else if (vec3 == 4)
+			output_size = encodeNDZ<unsigned char>(output.data(), output.size(), input.data(), vertex_count, stride);
 		else
 			output_size = encodeV1(output.data(), output.size(), input.data(), vertex_count, stride);
 
