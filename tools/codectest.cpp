@@ -263,7 +263,22 @@ static unsigned char* encodeVertexBlock(unsigned char* data, unsigned char* data
 
 	for (size_t k = 0; k < vertex_size; k += 4)
 	{
-		data = encodeVertexBlock4(data, data_end, vertex_data, vertex_count, vertex_size, last_vertex, k, 1);
+		int best_width = 1;
+		size_t best_size = SIZE_MAX;
+
+		for (int width = 1; width <= 4; width *= 2)
+		{
+			unsigned char* enc = encodeVertexBlock4(data, data_end, vertex_data, vertex_count, vertex_size, last_vertex, k, width);
+			assert(enc);
+
+			if (size_t(enc - data) < best_size)
+			{
+				best_width = width;
+				best_size = enc - data;
+			}
+		}
+
+		data = encodeVertexBlock4(data, data_end, vertex_data, vertex_count, vertex_size, last_vertex, k, best_width);
 	}
 
 	memcpy(last_vertex, &vertex_data[vertex_size * (vertex_count - 1)], vertex_size);
