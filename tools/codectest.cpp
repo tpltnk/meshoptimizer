@@ -217,8 +217,10 @@ static unsigned char* encodeVertexBlock(unsigned char* data, unsigned char* data
 
 		size_t vertex_count_aligned = (vertex_count + kByteGroupSize - 1) & ~(kByteGroupSize - 1);
 
-		std::vector<int> best_combs;
-		size_t best_size = SIZE_MAX;
+		unsigned char* encb = encodeBytes(data, data_end, buffer, vertex_count_aligned, 0, 2, 4, 8);
+
+		int best_comb = (1 << 0) | (1 << 2) | (1 << 4) | (1 << 8);
+		size_t best_size = encb - data;
 
 		for (int comb = 0; comb < 512; ++comb)
 		{
@@ -247,18 +249,14 @@ static unsigned char* encodeVertexBlock(unsigned char* data, unsigned char* data
 			assert(encv);
 
 			if (size_t(encv - data) < best_size)
-				best_combs.clear();
-
-			if (size_t(encv - data) <= best_size)
 			{
-				best_combs.push_back(comb);
+				best_comb = comb;
 				best_size = encv - data;
 			}
 		}
 
-		for (size_t i = 0; i < best_combs.size(); ++i)
 		{
-			int comb = best_combs[i];
+			int comb = best_comb;
 			int bits0 = -1, bits1 = -1, bits2 = -1, bits3 = -1;
 
 			for (int b = 0; b <= 8; ++b)
