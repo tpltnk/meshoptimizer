@@ -253,16 +253,18 @@ static unsigned char* encodeVertexBlock4(unsigned char* data, unsigned char* dat
 
 		header[k / 4] |= best_enc << ((k % 4) * 2);
 
+		// literal block, todo steal one entry from best_enc
 		if (best_size >= vertex_count)
 		{
-			// literal block, todo steal one entry from best_enc
 			memcpy(data, buffer, vertex_count);
-			return data + vertex_count;
+			data += vertex_count;
 		}
-
-		data = encodeBytes(data, data_end, buffer, vertex_count_aligned, encs[best_enc][0], encs[best_enc][1], encs[best_enc][2], encs[best_enc][3]);
-		if (!data)
-			return NULL;
+		else
+		{
+			data = encodeBytes(data, data_end, buffer, vertex_count_aligned, encs[best_enc][0], encs[best_enc][1], encs[best_enc][2], encs[best_enc][3]);
+			if (!data)
+				return NULL;
+		}
 	}
 
 	return data;
@@ -279,7 +281,7 @@ static unsigned char* encodeVertexBlock(unsigned char* data, unsigned char* data
 		size_t best_size = SIZE_MAX;
 
 		bool tune_width = true;
-		bool tune_rot = true;
+		bool tune_rot = false; // tanks zstd
 
 		for (int width = 1; width <= (tune_width ? 4 : 1); width *= 2)
 		{
