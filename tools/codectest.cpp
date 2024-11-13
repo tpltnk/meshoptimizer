@@ -217,6 +217,8 @@ static unsigned char* encodeVertexBlock(unsigned char* data, unsigned char* data
 
 		size_t vertex_count_aligned = (vertex_count + kByteGroupSize - 1) & ~(kByteGroupSize - 1);
 
+		// permutation solver
+#if 1
 		unsigned char* encb = encodeBytes(data, data_end, buffer, vertex_count_aligned, 0, 2, 4, 8);
 
 		int best_comb = (1 << 0) | (1 << 2) | (1 << 4) | (1 << 8);
@@ -230,6 +232,9 @@ static unsigned char* encodeVertexBlock(unsigned char* data, unsigned char* data
 			for (int b = 0; b <= 8; ++b)
 				if (comb & (1 << b))
 				{
+					if (b == 5 || b == 7) // we don't like these'
+						continue;
+
 					if (bits0 < 0)
 						bits0 = b;
 					else if (bits1 < 0)
@@ -280,6 +285,34 @@ static unsigned char* encodeVertexBlock(unsigned char* data, unsigned char* data
 		data = encodeBytes(data, data_end, buffer, vertex_count_aligned, 0, 2, 4, 8);
 		if (!data)
 			return NULL;
+#else
+		const int encs[4][4] =
+		    {
+		        {0, 2, 4, 8},
+		        {0, 1, 2, 3},
+		        {0, 1, 2, 8},
+		        {0, 1, 6, 8},
+		    };
+
+		int best_enc = -1;
+		size_t best_size = SIZE_MAX;
+
+		for (int enc = 0; enc < 4; ++enc)
+		{
+			unsigned char* encp = encodeBytes(data, data_end, buffer, vertex_count_aligned, encs[enc][0], encs[enc][1], encs[enc][2], encs[enc][3]);
+			assert(encp);
+
+			if (size_t(encp - data) < best_size)
+			{
+				best_enc = enc;
+				best_size = size_t(encp - data);
+			}
+		}
+
+		data = encodeBytes(data, data_end, buffer, vertex_count_aligned, encs[best_enc][0], encs[best_enc][1], encs[best_enc][2], encs[best_enc][3]);
+		if (!data)
+			return NULL;
+#endif
 
 #if TRACE
 		bytestats = NULL;
