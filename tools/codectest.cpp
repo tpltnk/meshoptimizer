@@ -290,6 +290,8 @@ static unsigned char* encodeVertexBlock(unsigned char* data, unsigned char* data
 			}
 		}
 
+		*data++ = (best_rot << 2) | (best_width - 1); // 5 + 2 bits
+
 		// fprintf(stderr, "%d: width %d rot %d\n", int(k), best_width, best_rot);
 
 		data = encodeVertexBlock4(data, data_end, vertex_data, vertex_count, vertex_size, last_vertex, k, best_width, best_rot);
