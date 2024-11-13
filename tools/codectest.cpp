@@ -217,6 +217,68 @@ static unsigned char* encodeVertexBlock(unsigned char* data, unsigned char* data
 
 		size_t vertex_count_aligned = (vertex_count + kByteGroupSize - 1) & ~(kByteGroupSize - 1);
 
+		std::vector<int> best_combs;
+		size_t best_size = SIZE_MAX;
+
+		for (int comb = 0; comb < 512; ++comb)
+		{
+			int bits0 = -1, bits1 = -1, bits2 = -1, bits3 = -1;
+			int bits4 = -1;
+
+			for (int b = 0; b <= 8; ++b)
+				if (comb & (1 << b))
+				{
+					if (bits0 < 0)
+						bits0 = b;
+					else if (bits1 < 0)
+						bits1 = b;
+					else if (bits2 < 0)
+						bits2 = b;
+					else if (bits3 < 0)
+						bits3 = b;
+					else
+						bits4 = b;
+				}
+
+			if (bits3 < 0 || bits4 >= 0)
+				continue;
+
+			unsigned char* encv = encodeBytes(data, data_end, buffer, vertex_count_aligned, bits0, bits1, bits2, bits3);
+			assert(encv);
+
+			if (size_t(encv - data) < best_size)
+				best_combs.clear();
+
+			if (size_t(encv - data) <= best_size)
+			{
+				best_combs.push_back(comb);
+				best_size = encv - data;
+			}
+		}
+
+		for (size_t i = 0; i < best_combs.size(); ++i)
+		{
+			int comb = best_combs[i];
+			int bits0 = -1, bits1 = -1, bits2 = -1, bits3 = -1;
+
+			for (int b = 0; b <= 8; ++b)
+				if (comb & (1 << b))
+				{
+					if (bits0 < 0)
+						bits0 = b;
+					else if (bits1 < 0)
+						bits1 = b;
+					else if (bits2 < 0)
+						bits2 = b;
+					else if (bits3 < 0)
+						bits3 = b;
+					else
+						assert(false);
+				}
+
+			fprintf(stderr, "%d%d%d%d\n", bits0, bits1, bits2, bits3);
+		}
+
 		data = encodeBytes(data, data_end, buffer, vertex_count_aligned, 0, 2, 4, 8);
 		if (!data)
 			return NULL;
