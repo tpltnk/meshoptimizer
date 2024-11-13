@@ -175,6 +175,23 @@ static unsigned char* encodeBytes(unsigned char* data, unsigned char* data_end, 
 	return data;
 }
 
+template <typename T, typename ST>
+static void makedelta(unsigned char* buffer, const unsigned char* vertex_data, size_t vertex_count, size_t vertex_size, unsigned char last_vertex[256], size_t vertex_offset)
+{
+	const size_t tmask = ~(sizeof(T) - 1);
+
+	T p = *(T*)&last_vertex[vertex_offset & tmask];
+
+	for (size_t i = 0; i < vertex_count; ++i)
+	{
+		T d = *(T*)&vertex_data[vertex_offset & tmask] - p;
+		buffer[i] = ((ST(d) >> (8 * sizeof(T) - 1)) ^ (d << 1)) >> (8 * (vertex_offset & (sizeof(T) - 1)));
+		p = *(T*)&vertex_data[vertex_offset & tmask];
+
+		vertex_offset += vertex_size;
+	}
+}
+
 static unsigned char* encodeVertexBlock(unsigned char* data, unsigned char* data_end, const unsigned char* vertex_data, size_t vertex_count, size_t vertex_size, unsigned char last_vertex[256])
 {
 	assert(vertex_count > 0 && vertex_count <= kVertexBlockMaxSize);
@@ -193,17 +210,17 @@ static unsigned char* encodeVertexBlock(unsigned char* data, unsigned char* data
 
 	for (size_t k = 0; k < vertex_size; ++k)
 	{
-		size_t vertex_offset = k;
-
-		unsigned char p = last_vertex[k];
-
-		for (size_t i = 0; i < vertex_count; ++i)
+		switch (1)
 		{
-			buffer[i] = zigzag8(vertex_data[vertex_offset] - p);
-
-			p = vertex_data[vertex_offset];
-
-			vertex_offset += vertex_size;
+		case 1:
+			makedelta<unsigned char, signed char>(buffer, vertex_data, vertex_count, vertex_size, last_vertex, k);
+			break;
+		case 2:
+			makedelta<unsigned short, signed short>(buffer, vertex_data, vertex_count, vertex_size, last_vertex, k);
+			break;
+		case 4:
+			makedelta<unsigned int, signed int>(buffer, vertex_data, vertex_count, vertex_size, last_vertex, k);
+			break;
 		}
 
 #if TRACE
