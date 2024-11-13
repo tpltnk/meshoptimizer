@@ -353,65 +353,6 @@ size_t encodeV1(unsigned char* buffer, size_t buffer_size, const void* vertices,
 	return data - buffer;
 }
 
-template <typename G>
-size_t encodeNDZ(unsigned char* buffer, size_t buffer_size, const void* vertices, size_t vertex_count, size_t vertex_size)
-{
-	unsigned char* pos = buffer;
-	const size_t GS = sizeof(G);
-
-	for (size_t k = 0; k < vertex_size; k += GS)
-	{
-		G last = 0;
-
-		for (size_t i = 0; i < vertex_count; i += GS * 8)
-		{
-			G deltas[GS * 8] = {};
-
-			for (size_t j = 0; j < GS * 8 && i + j < vertex_count; ++j)
-			{
-				G value = *(G*)((char*)vertices + (i + j) * vertex_size + k);
-
-				// hurts unless values clump around 0
-				// value = (value << 1) | (value >> 31);
-
-				deltas[j] = value - last;
-
-				G sign = 1u << (GS * 8 - 1);
-				deltas[j] ^= (deltas[j] & sign) ? sign - 1 : 0;
-
-				last = value;
-			}
-
-			G transposed[GS * 8] = {};
-			for (size_t jr = 0; jr < GS * 8; ++jr)
-				for (size_t jc = 0; jc < GS * 8; ++jc)
-					if (deltas[jc] & (1u << jr))
-						transposed[jr] |= 1u << jc;
-
-			// effectively becomes raw deltas (for testing)
-			// memcpy(transposed, deltas, sizeof(deltas));
-
-			G mask = 0;
-			for (size_t j = 0; j < GS * 8; ++j)
-				if (transposed[j])
-					mask |= 1u << j;
-
-			*(G*)pos = mask;
-			pos += GS;
-
-			for (size_t j = 0; j < GS * 8; ++j)
-				if (transposed[j])
-				{
-					*(G*)pos = transposed[j];
-					pos += GS;
-				}
-		}
-	}
-
-	assert(pos <= buffer + buffer_size);
-	return pos - buffer;
-}
-
 int main(int argc, char** argv)
 {
 #ifdef _WIN32
@@ -480,15 +421,7 @@ int main(int argc, char** argv)
 	{
 		size_t vertex_count = input.size() / stride;
 		std::vector<unsigned char> output(input.size() * 4); // todo
-		size_t output_size;
-		if (vec3 == 2)
-			output_size = encodeNDZ<unsigned int>(output.data(), output.size(), input.data(), vertex_count, stride);
-		else if (vec3 == 3)
-			output_size = encodeNDZ<unsigned short>(output.data(), output.size(), input.data(), vertex_count, stride);
-		else if (vec3 == 4)
-			output_size = encodeNDZ<unsigned char>(output.data(), output.size(), input.data(), vertex_count, stride);
-		else
-			output_size = encodeV1(output.data(), output.size(), input.data(), vertex_count, stride);
+		size_t output_size = encodeV1(output.data(), output.size(), input.data(), vertex_count, stride);
 
 		fwrite(output.data(), 1, output_size, stdout);
 		return 0;
