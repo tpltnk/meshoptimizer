@@ -253,6 +253,13 @@ static unsigned char* encodeVertexBlock4(unsigned char* data, unsigned char* dat
 
 		header[k / 4] |= best_enc << ((k % 4) * 2);
 
+		if (best_size >= vertex_count)
+		{
+			// literal block, todo steal one entry from best_enc
+			memcpy(data, buffer, vertex_count);
+			return data + vertex_count;
+		}
+
 		data = encodeBytes(data, data_end, buffer, vertex_count_aligned, encs[best_enc][0], encs[best_enc][1], encs[best_enc][2], encs[best_enc][3]);
 		if (!data)
 			return NULL;
