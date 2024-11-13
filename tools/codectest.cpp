@@ -192,7 +192,7 @@ static void makedelta(unsigned char* buffer, const unsigned char* vertex_data, s
 	}
 }
 
-static unsigned char* encodeVertexBlock(unsigned char* data, unsigned char* data_end, const unsigned char* vertex_data, size_t vertex_count, size_t vertex_size, unsigned char last_vertex[256])
+static unsigned char* encodeVertexBlock4(unsigned char* data, unsigned char* data_end, const unsigned char* vertex_data, size_t vertex_count, size_t vertex_size, unsigned char last_vertex[256], size_t vertex_offset, int width)
 {
 	assert(vertex_count > 0 && vertex_count <= kVertexBlockMaxSize);
 
@@ -205,12 +205,11 @@ static unsigned char* encodeVertexBlock(unsigned char* data, unsigned char* data
 	unsigned char* header = data;
 
 	// 2-bit selector per byte per block
-	for (size_t k = 0; k < vertex_size; k += 4)
-		*data++ = 0;
+	*data++ = 0;
 
-	for (size_t k = 0; k < vertex_size; ++k)
+	for (size_t k = vertex_offset; k < vertex_offset + 4; ++k)
 	{
-		switch (1)
+		switch (width)
 		{
 		case 1:
 			makedelta<unsigned char, signed char>(buffer, vertex_data, vertex_count, vertex_size, last_vertex, k);
@@ -222,23 +221,6 @@ static unsigned char* encodeVertexBlock(unsigned char* data, unsigned char* data
 			makedelta<unsigned int, signed int>(buffer, vertex_data, vertex_count, vertex_size, last_vertex, k);
 			break;
 		}
-
-#if TRACE
-		const unsigned char* olddata = data;
-		bytestats = &vertexstats[k];
-
-		for (size_t ig = 0; ig < vertex_count; ig += kByteGroupSize)
-		{
-			unsigned char last = (ig == 0) ? last_vertex[k] : vertex_data[vertex_size * (ig - 1) + k];
-			unsigned char delta = 0xff;
-
-			for (size_t i = ig; i < ig + kByteGroupSize && i < vertex_count; ++i)
-				delta &= ~(vertex_data[vertex_size * i + k] ^ last);
-
-			for (int j = 0; j < 8; ++j)
-				bytestats->bitc[j] += (vertex_count - ig < kByteGroupSize ? vertex_count - ig : kByteGroupSize) * ((delta >> j) & 1);
-		}
-#endif
 
 		size_t vertex_count_aligned = (vertex_count + kByteGroupSize - 1) & ~(kByteGroupSize - 1);
 
@@ -270,11 +252,18 @@ static unsigned char* encodeVertexBlock(unsigned char* data, unsigned char* data
 		data = encodeBytes(data, data_end, buffer, vertex_count_aligned, encs[best_enc][0], encs[best_enc][1], encs[best_enc][2], encs[best_enc][3]);
 		if (!data)
 			return NULL;
+	}
 
-#if TRACE
-		bytestats = NULL;
-		vertexstats[k].size += data - olddata;
-#endif
+	return data;
+}
+
+static unsigned char* encodeVertexBlock(unsigned char* data, unsigned char* data_end, const unsigned char* vertex_data, size_t vertex_count, size_t vertex_size, unsigned char last_vertex[256])
+{
+	assert(vertex_count > 0 && vertex_count <= kVertexBlockMaxSize);
+
+	for (size_t k = 0; k < vertex_size; k += 4)
+	{
+		data = encodeVertexBlock4(data, data_end, vertex_data, vertex_count, vertex_size, last_vertex, k, 1);
 	}
 
 	memcpy(last_vertex, &vertex_data[vertex_size * (vertex_count - 1)], vertex_size);
