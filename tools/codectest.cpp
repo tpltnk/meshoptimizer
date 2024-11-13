@@ -142,8 +142,10 @@ static unsigned char* encodeBytes(unsigned char* data, unsigned char* data_end, 
 				continue;
 
 			unsigned char* next = encodeBytesGroupTry(data, buffer + i, bits);
+			if (!next)
+				continue;
 
-			if (next && size_t(next - data) < best_size)
+			if (size_t(next - data) < best_size || (bits == 8 && size_t(next - data) == best_size))
 			{
 				best_bits = bits;
 				best_size = next - data;
